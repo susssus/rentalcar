@@ -118,23 +118,35 @@ def _extract_prices_from_page(page) -> list[float]:
     return sorted(prices)
 
 
-def _accept_cookie_consent(page, wait_banner_ms: int = 15_000, click_timeout_ms: int = 5000) -> None:
-    """Wait for OneTrust banner (id=onetrust-group-container / Accept button), then click Accept (Hyväksyn)."""
+def _accept_cookie_consent(page, wait_banner_ms: int = 10_000, click_timeout_ms: int = 5000) -> None:
+    """Find OneTrust Accept button (footer banner), scroll into view, click. Banner appears fast."""
     try:
-        # OneTrust loads async; wait for the Accept button to be visible (e.g. "Hyväksyn" in Finnish)
-        btn = page.wait_for_selector(
-            "#onetrust-accept-btn-handler",
-            state="visible",
-            timeout=wait_banner_ms,
-        )
+        btn = None
+        try:
+            btn = page.wait_for_selector(
+                "#onetrust-accept-btn-handler",
+                state="attached",
+                timeout=wait_banner_ms,
+            )
+        except Exception:
+            pass
+        if not btn:
+            try:
+                btn = page.get_by_role("button", name=re.compile(r"Hyväksyn|Accept", re.I)).first
+                btn.wait_for(state="attached", timeout=3000)
+            except Exception:
+                pass
         if btn:
+            # Footer banner may be below fold; scroll into view so click registers
+            btn.scroll_into_view_if_needed(timeout=click_timeout_ms)
+            page.wait_for_timeout(300)
             btn.click(timeout=click_timeout_ms)
-            page.wait_for_timeout(1500)  # let banner dismiss
+            page.wait_for_timeout(2000)  # let banner dismiss and any reload settle
             logger.info("Cookie consent: clicked Accept (Hyväksyn).")
         else:
             logger.info("Cookie consent: no banner found, skipping.")
     except Exception as e:
-        logger.info("Cookie consent: banner did not appear within %ds or click failed — %s", wait_banner_ms / 1000, e)
+        logger.info("Cookie consent: %s", e)
 
 
 def _page_has_error_message(page) -> bool:
@@ -150,11 +162,11 @@ def _page_has_error_message(page) -> bool:
 
 
 def _wait_for_results(page, extra_wait_ms: int = 25_000) -> None:
-    """Wait for WAF/cookies then for price-like content. Accept cookie banner first."""
-    logger.info("Waiting 5s for WAF / page scripts to start...")
-    page.wait_for_timeout(5000)  # let WAF script start
+    """Accept cookie banner first (footer, appears fast), then wait for price content."""
+    logger.info("Looking for cookie banner (Accept), then waiting for results...")
+    page.wait_for_timeout(2000)  # brief moment for page to start
     _accept_cookie_consent(page)
-    remaining = max(0, extra_wait_ms - 5000 - 2000)
+    remaining = max(0, extra_wait_ms - 2000 - 3000)  # reserve time for consent + settle
     logger.info("Waiting %.1fs for results to load...", remaining / 1000.0)
     page.wait_for_timeout(remaining)
     logger.info("Waiting up to 35s for body to contain a price (€ + digits)...")
