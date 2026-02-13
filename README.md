@@ -2,7 +2,7 @@
 
 Web app that polls [Rentalcars.com](https://www.rentalcars.com) for **Alicante–Elche (ALC)** airport, **fetch & return at same location**, filtered for **automatic transmission** and **small cars**. It stores price history, shows **average** and **median** price per day, and highlights when the current rate is **cheap** (below the 25th percentile).
 
-Deploy as a **Vercel webapp** with a dashboard and a cron job that runs once per day.
+Deploy as a **Vercel webapp** with a dashboard. Price scraping runs in a **daily GitHub Action** (so no Chromium on Vercel, avoiding the `libnss3`/serverless issues).
 
 ---
 
@@ -16,21 +16,28 @@ Deploy as a **Vercel webapp** with a dashboard and a cron job that runs once per
    In the Vercel dashboard: Project → Integrations → search **Upstash** → add the Redis integration and connect a database (or create one). This stores the price history. The integration injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
 
 4. **Environment variables** (optional; defaults work for ALC, 25 Feb–12 Mar 2026):
-   - `CRON_SECRET` – Set a secret string. Vercel sends it as `Authorization: Bearer <CRON_SECRET>` when invoking the cron. Add the same value in Project → Settings → Cron → Secret so the cron endpoint can validate requests.
-   - To change dates or filters, set:
-     - `PICKUP_DAY`, `PICKUP_MONTH`, `PICKUP_YEAR`, `PICKUP_HOUR`, `PICKUP_MINUTE`
-     - `DROPOFF_DAY`, `DROPOFF_MONTH`, `DROPOFF_YEAR`, `DROPOFF_HOUR`, `DROPOFF_MINUTE`
-     - `LOCATION_IATA`, `LOCATION_NAME`, `LOCATION_COORDINATES`
-     - `DRIVERS_AGE`, `FILTER_TRANSMISSION`, `FILTER_CAR_CATEGORY`
-     - `CHEAP_PERCENTILE` (e.g. `0.25`)
+   - `CRON_SECRET` or `INGEST_SECRET` – Secret used to authorize the GitHub Action when it POSTs scraped data to `/api/ingest`. Set the same value as the GitHub secret `INGEST_SECRET` (see below).
+   - To change dates or filters, set the same in `config.yaml` for the Python scraper (used by the Action); the dashboard reads from Redis.
+     - `PICKUP_DAY`, `PICKUP_MONTH`, `PICKUP_YEAR`, etc. in Vercel only affect the dashboard’s config display; the Action uses `config.yaml`.
 
-5. **Enable Cron**  
-   The repo includes `vercel.json` with a cron that hits `/api/cron/check-prices` once per day (12:00 UTC), which fits Vercel Hobby’s cron limits (see [Vercel Cron](https://vercel.com/docs/cron-jobs)).
+5. **Deploy**  
+   Deploy from the Vercel dashboard or `vercel` CLI. The app serves the **dashboard** at `/` (current min price, stats, recent runs). The “Run price check now” button explains that scraping is done by the daily GitHub Action.
 
-6. **Deploy**  
-   Deploy from the Vercel dashboard or `vercel` CLI. The app will:
-   - Serve the **dashboard** at `/` (current min price, stats, recent runs, “Run price check now”).
-   - Run the **scraper** on schedule via cron (or when you click “Run price check now”). The scraper uses Puppeteer + Chromium on Vercel’s serverless runtime (max duration 60s on Pro).
+---
+
+## Daily scrape via GitHub Action
+
+Scraping runs **on GitHub’s runners** (full Linux + Playwright), then POSTs results to your app so Vercel never runs Chromium.
+
+1. **Secrets** (repo → Settings → Secrets and variables → Actions):
+   - `INGEST_URL` – Your app’s origin, e.g. `https://your-app.vercel.app` (no trailing slash).
+   - `INGEST_SECRET` – A secret string; set the same value as `CRON_SECRET` or `INGEST_SECRET` in Vercel so `/api/ingest` accepts the request.
+
+2. **Schedule**  
+   The workflow `.github/workflows/daily-scrape.yml` runs at **12:00 UTC** every day. You can also run it manually: Actions → “Daily price scrape” → “Run workflow”.
+
+3. **Flow**  
+   The Action installs Python + Playwright, runs the same scraper as the Python CLI, and POSTs the run JSON to `https://<INGEST_URL>/api/ingest`. The dashboard then shows the new data.
 
 ---
 
@@ -43,7 +50,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). You need **Upstash Redis** for storage: add the Upstash integration to your Vercel project, then run `vercel link` and `vercel env pull .env.local` to get `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` locally.
 
-To trigger a price check locally: click “Run price check now” in the UI, or `curl -X POST http://localhost:3000/api/run`.
+The “Run price check now” button no longer runs a scrape on Vercel; it shows a short message. Data is updated by the daily GitHub Action. To test the scraper locally, use the Python CLI below and (optionally) POST the output to your app’s `/api/ingest` with the same secret.
 
 ---
 

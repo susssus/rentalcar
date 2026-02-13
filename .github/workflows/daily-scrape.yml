@@ -1,0 +1,49 @@
+name: Daily price scrape
+
+on:
+  schedule:
+    # Noon UTC daily
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium || true
+
+      - name: Run scraper and ingest
+        env:
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          OUT=$(python scripts/run_and_output_json.py) || true
+          echo "Scraper output (first 500 chars):"
+          echo "$OUT" | head -c 500
+          if [ -z "$INGEST_URL" ] || [ -z "$INGEST_SECRET" ]; then
+            echo "INGEST_URL or INGEST_SECRET not set; skipping POST."
+            exit 0
+          fi
+          BASE="${INGEST_URL%/}"
+          INGEST="${BASE}/api/ingest"
+          if echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('pickup_date') else 1)" 2>/dev/null; then
+            echo "POSTing to $INGEST"
+            curl -sS -w "\nHTTP %{http_code}\n" -X POST "$INGEST" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $INGEST_SECRET" \
+              -d "$OUT"
+          else
+            echo "No valid JSON or missing pickup_date; skipping POST."
+          fi

@@ -80,6 +80,11 @@ a:hover {
   border: 1px solid var(--error);
   color: #fca5a5;
 }
+.banner.info {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid var(--accent);
+  color: #fcd34d;
+}
 
 .cards {
   display: grid;

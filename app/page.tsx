@@ -47,6 +47,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [runLoading, setRunLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -69,11 +70,13 @@ export default function Home() {
   const runCheck = async () => {
     setRunLoading(true);
     setError(null);
+    setInfo(null);
     try {
       const res = await fetch("/api/run", { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Run failed");
       await fetchStats();
+      if (json.ok === false && json.message) setInfo(json.message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Run failed");
     } finally {
@@ -117,6 +120,12 @@ export default function Home() {
       {error && (
         <div className="banner error">
           {error}
+        </div>
+      )}
+
+      {info && (
+        <div className="banner info">
+          {info}
         </div>
       )}
 
