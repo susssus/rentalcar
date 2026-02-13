@@ -52,9 +52,10 @@ export async function POST(request: NextRequest) {
     await appendRun(run);
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to store run";
     console.error("Ingest error:", e);
     return NextResponse.json(
-      { error: "Failed to store run" },
+      { error: "Failed to store run", detail: message },
       { status: 500 }
     );
   }
