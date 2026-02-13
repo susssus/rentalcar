@@ -161,12 +161,27 @@ def _page_has_error_message(page) -> bool:
         return False
 
 
+def _click_search_button(page, timeout_ms: int = 10_000) -> None:
+    """Click the 'Hae' (Search) submit button so the search actually runs; first load often shows no results."""
+    try:
+        btn = page.get_by_role("button", name=re.compile(r"Hae|Search", re.I)).first
+        btn.wait_for(state="visible", timeout=timeout_ms)
+        btn.scroll_into_view_if_needed(timeout=5000)
+        page.wait_for_timeout(300)
+        btn.click(timeout=5000)
+        logger.info("Clicked Search (Hae) to trigger results.")
+    except Exception as e:
+        logger.info("Search button click skipped or failed — %s", e)
+
+
 def _wait_for_results(page, extra_wait_ms: int = 25_000) -> None:
-    """Accept cookie banner first (footer, appears fast), then wait for price content."""
-    logger.info("Looking for cookie banner (Accept), then waiting for results...")
+    """Accept cookie banner, click Search (Hae) to run search, then wait for price content."""
+    logger.info("Looking for cookie banner (Accept), then triggering search...")
     page.wait_for_timeout(2000)  # brief moment for page to start
     _accept_cookie_consent(page)
-    remaining = max(0, extra_wait_ms - 2000 - 3000)  # reserve time for consent + settle
+    page.wait_for_timeout(1500)  # let consent settle before clicking Search
+    _click_search_button(page)
+    remaining = max(0, extra_wait_ms - 2000 - 5000)  # reserve time for consent + search click
     logger.info("Waiting %.1fs for results to load...", remaining / 1000.0)
     page.wait_for_timeout(remaining)
     logger.info("Waiting up to 35s for body to contain a price (€ + digits)...")
