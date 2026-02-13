@@ -7,6 +7,7 @@ import {
   getDropoffDateStr,
 } from "./config";
 
+// Reduces serverless footprint; required for Vercel (avoids extra lib deps)
 chromium.setGraphicsMode = false;
 
 export type ScrapeResult = {
@@ -95,9 +96,9 @@ export async function fetchPrices(timeoutMs = 55_000): Promise<ScrapeResult> {
 
   const browser = await puppeteer.launch({
     args: chromium.args,
-    defaultViewport: chromium.defaultViewport,
+    defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 1 },
     executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
+    headless: true,
   });
 
   try {
