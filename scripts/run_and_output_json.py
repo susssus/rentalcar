@@ -5,11 +5,15 @@ Used by the GitHub Action to POST to the app's /api/ingest.
 """
 import json
 import sys
-from datetime import datetime
+import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Avoid deprecation warnings on stdout when Action captures 2>&1
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from scraper import fetch_prices  # noqa: E402
 
@@ -20,7 +24,7 @@ def main():
     min_per_day = (min_price / rental_days) if min_price and rental_days else None
 
     run = {
-        "run_at": datetime.utcnow().isoformat() + "Z",
+        "run_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "pickup_date": data.get("pickup_date", ""),
         "dropoff_date": data.get("dropoff_date", ""),
         "rental_days": rental_days,
@@ -37,5 +41,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        print(json.dumps({"error": str(e), "pickup_date": "", "dropoff_date": ""}), file=sys.stderr)
         sys.exit(2)

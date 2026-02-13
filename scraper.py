@@ -58,17 +58,20 @@ def _extract_prices_from_page(page) -> list[float]:
                     prices.append(p)
         except Exception as e:
             logger.debug("Selector %s: %s", sel, e)
-    # Fallback: any element whose text looks like a price (€ number)
+    # Fallback: body text with € or £ and numbers
     if not prices:
         try:
             all_text = page.inner_text("body")
-            for m in re.finditer(r"€\s*([\d.,]+)|([\d.,]+)\s*€", all_text):
+            for m in re.finditer(r"[€£]\s*([\d.,]+)|([\d.,]+)\s*[€£]", all_text):
                 g = m.group(1) or m.group(2)
                 if g:
-                    v = float(g.replace(",", "."))
-                    if 0 < v < 100_000 and v not in seen:
-                        seen.add(v)
-                        prices.append(v)
+                    try:
+                        v = float(g.replace(",", "."))
+                        if 0 < v < 100_000 and v not in seen:
+                            seen.add(v)
+                            prices.append(v)
+                    except ValueError:
+                        pass
         except Exception as e:
             logger.debug("Body price fallback: %s", e)
     return sorted(prices)
@@ -107,8 +110,8 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
             )
             page = context.new_page()
             # Site can be slow or JS-heavy; wait for load then allow time for results to render
-            page.goto(url, wait_until="load", timeout=timeout_ms)
-            page.wait_for_timeout(8000)  # allow JS to render results
+            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+            page.wait_for_timeout(12000)  # allow JS to render results (site can be slow)
             prices = _extract_prices_from_page(page)
             if prices:
                 result["all_prices"] = prices

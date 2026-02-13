@@ -31,8 +31,9 @@ jobs:
         run: |
           set -e
           echo "=== 1. Running scraper ==="
-          OUT=$(python scripts/run_and_output_json.py 2>&1) || true
-          echo "Scraper stdout/stderr (first 800 chars):"
+          # Capture stdout only so JSON is not mixed with stderr (e.g. deprecation warnings)
+          OUT=$(python scripts/run_and_output_json.py 2>/dev/null) || true
+          echo "Scraper output (first 800 chars):"
           echo "$OUT" | head -c 800
           echo ""
 
@@ -41,6 +42,7 @@ jobs:
             exit 1
           fi
 
+          # Accept any valid run JSON (even with null min_price) so we record that a run happened
           if ! echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); exit(0 if d.get('pickup_date') else 1)" 2>/dev/null; then
             echo "=== FAIL: Scraper did not return valid JSON with pickup_date (maybe it crashed or timed out). Check the scraper output above. ==="
             exit 1
