@@ -139,7 +139,7 @@ export default function Home() {
         </div>
 
         <div className="card">
-          <h2>Stats (all runs)</h2>
+          <h2>Stats (runs with offers)</h2>
           {stats && stats.count > 0 ? (
             <>
               <div className="stat-row">
@@ -154,10 +154,10 @@ export default function Home() {
                 <span>25th percentile (cheap threshold)</span>
                 <span>{stats.p25PerDay != null ? formatMoney(stats.p25PerDay) : "—"}</span>
               </div>
-              <p className="muted small">{stats.count} runs recorded</p>
+              <p className="muted small">{stats.count} successful run(s)</p>
             </>
           ) : (
-            <p className="muted">Run a few checks to see averages.</p>
+            <p className="muted">No successful runs yet. Stats need runs with at least one offer.</p>
           )}
         </div>
       </section>

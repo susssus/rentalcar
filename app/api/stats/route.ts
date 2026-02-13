@@ -16,9 +16,14 @@ export async function GET() {
     const pickup = getPickupDateStr();
     const dropoff = getDropoffDateStr();
     const runs = await getRunsForDates(pickup, dropoff);
-    const stats = computeStats(runs);
+    // Successful scrape = run with at least one offer (non-zero price info)
+    const successfulRuns = runs.filter((r) => r.num_offers > 0);
+    const stats = computeStats(successfulRuns);
 
-    const lastRun = runs.length > 0 ? runs[runs.length - 1]! : null;
+    const lastRun =
+      successfulRuns.length > 0
+        ? successfulRuns[successfulRuns.length - 1]!
+        : null;
     const recentRuns = runs.slice(-20).reverse();
 
     return NextResponse.json({
