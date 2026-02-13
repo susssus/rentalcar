@@ -45,9 +45,7 @@ function formatMoney(n: number) {
 export default function Home() {
   const [data, setData] = useState<ApiStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [runLoading, setRunLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
 
   const fetchStats = async () => {
     try {
@@ -67,22 +65,6 @@ export default function Home() {
     fetchStats();
   }, []);
 
-  const runCheck = async () => {
-    setRunLoading(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const res = await fetch("/api/run", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Run failed");
-      await fetchStats();
-      if (json.ok === false && json.message) setInfo(json.message);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Run failed");
-    } finally {
-      setRunLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -123,11 +105,9 @@ export default function Home() {
         </div>
       )}
 
-      {info && (
-        <div className="banner info">
-          {info}
-        </div>
-      )}
+      <div className="banner info">
+        Price checks run via the daily GitHub Action and POST to the app. Trigger the workflow with the button below, or in the repo’s Actions tab.
+      </div>
 
       {isCheap && last && (
         <div className="banner cheap">
@@ -183,16 +163,16 @@ export default function Home() {
       </section>
 
       <section className="actions">
-        <button
-          type="button"
+        <a
+          href="https://github.com/susssus/rentalcar/actions/workflows/daily-scrape.yml"
+          target="_blank"
+          rel="noopener noreferrer"
           className="btn"
-          onClick={runCheck}
-          disabled={runLoading}
         >
-          {runLoading ? "Checking…" : "Run price check now"}
-        </button>
+          Run price check now (opens GitHub Actions)
+        </a>
         <p className="muted small">
-          Cron runs once per day. You can also trigger a check here.
+          Opens the workflow page; click “Run workflow” there. Data appears here after it finishes.
         </p>
       </section>
 
