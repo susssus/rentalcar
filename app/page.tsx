@@ -183,7 +183,7 @@ export default function Home() {
           {runLoading ? "Checking…" : "Run price check now"}
         </button>
         <p className="muted small">
-          Cron runs every 6 hours. You can also trigger a check here.
+          Cron runs once per day. You can also trigger a check here.
         </p>
       </section>
 

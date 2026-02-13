@@ -2,7 +2,7 @@
 
 Web app that polls [Rentalcars.com](https://www.rentalcars.com) for **Alicante–Elche (ALC)** airport, **fetch & return at same location**, filtered for **automatic transmission** and **small cars**. It stores price history, shows **average** and **median** price per day, and highlights when the current rate is **cheap** (below the 25th percentile).
 
-Deploy as a **Vercel webapp** with a dashboard and a cron job that runs every 6 hours.
+Deploy as a **Vercel webapp** with a dashboard and a cron job that runs once per day.
 
 ---
 
@@ -25,7 +25,7 @@ Deploy as a **Vercel webapp** with a dashboard and a cron job that runs every 6 
      - `CHEAP_PERCENTILE` (e.g. `0.25`)
 
 5. **Enable Cron**  
-   The repo includes `vercel.json` with a cron that hits `/api/cron/check-prices` every 6 hours. On Vercel Pro you get cron; on Hobby the schedule may be limited (see [Vercel Cron](https://vercel.com/docs/cron-jobs)).
+   The repo includes `vercel.json` with a cron that hits `/api/cron/check-prices` once per day (12:00 UTC), which fits Vercel Hobby’s cron limits (see [Vercel Cron](https://vercel.com/docs/cron-jobs)).
 
 6. **Deploy**  
    Deploy from the Vercel dashboard or `vercel` CLI. The app will:
