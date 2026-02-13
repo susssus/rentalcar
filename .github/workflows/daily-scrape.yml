@@ -25,6 +25,7 @@ jobs:
           playwright install-deps chromium || true
 
       - name: Run scraper and ingest
+        timeout-minutes: 2
         env:
           INGEST_URL: ${{ secrets.INGEST_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}

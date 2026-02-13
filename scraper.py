@@ -77,7 +77,7 @@ def _extract_prices_from_page(page) -> list[float]:
     return sorted(prices)
 
 
-def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
+def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
     """
     Open the search URL, wait for results, extract prices.
     Returns dict with: min_price, all_prices, rental_days, pickup_date, dropoff_date, url.
@@ -110,8 +110,9 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
             )
             page = context.new_page()
             # Site can be slow or JS-heavy; wait for load then allow time for results to render
-            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-            page.wait_for_timeout(12000)  # allow JS to render results (site can be slow)
+            # Use "load" not "networkidle" (networkidle can hang on sites with constant requests)
+            page.goto(url, wait_until="load", timeout=timeout_ms)
+            page.wait_for_timeout(6000)  # allow JS to render results
             prices = _extract_prices_from_page(page)
             if prices:
                 result["all_prices"] = prices
