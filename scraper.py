@@ -118,8 +118,8 @@ def _extract_prices_from_page(page) -> list[float]:
     return sorted(prices)
 
 
-def _accept_cookie_consent(page, wait_banner_ms: int = 10_000, click_timeout_ms: int = 5000) -> None:
-    """Find OneTrust Accept button (footer banner), scroll into view, click. Banner appears fast."""
+def _accept_cookie_consent(page, wait_banner_ms: int = 4000, click_timeout_ms: int = 2000) -> None:
+    """Find OneTrust Accept button (footer banner), scroll into view, click. Kept short for CI timeout."""
     try:
         btn = None
         try:
@@ -133,15 +133,14 @@ def _accept_cookie_consent(page, wait_banner_ms: int = 10_000, click_timeout_ms:
         if not btn:
             try:
                 btn = page.get_by_role("button", name=re.compile(r"Hyväksyn|Accept", re.I)).first
-                btn.wait_for(state="attached", timeout=3000)
+                btn.wait_for(state="attached", timeout=2000)
             except Exception:
                 pass
         if btn:
-            # Footer banner may be below fold; scroll into view so click registers
             btn.scroll_into_view_if_needed(timeout=click_timeout_ms)
-            page.wait_for_timeout(300)
+            page.wait_for_timeout(200)
             btn.click(timeout=click_timeout_ms)
-            page.wait_for_timeout(2000)  # let banner dismiss and any reload settle
+            page.wait_for_timeout(1000)
             logger.info("Cookie consent: clicked Accept (Hyväksyn).")
         else:
             logger.info("Cookie consent: no banner found, skipping.")
@@ -161,42 +160,42 @@ def _page_has_error_message(page) -> bool:
         return False
 
 
-def _click_search_button(page, timeout_ms: int = 10_000) -> None:
-    """Click the 'Hae' (Search) submit button so the search actually runs; first load often shows no results."""
+def _click_search_button(page, timeout_ms: int = 6000) -> None:
+    """Click the 'Hae' (Search) submit button so the search actually runs. Kept short for CI."""
     try:
         btn = page.get_by_role("button", name=re.compile(r"Hae|Search", re.I)).first
         btn.wait_for(state="visible", timeout=timeout_ms)
-        btn.scroll_into_view_if_needed(timeout=5000)
-        page.wait_for_timeout(300)
-        btn.click(timeout=5000)
+        btn.scroll_into_view_if_needed(timeout=2000)
+        page.wait_for_timeout(200)
+        btn.click(timeout=2000)
         logger.info("Clicked Search (Hae) to trigger results.")
     except Exception as e:
         logger.info("Search button click skipped or failed — %s", e)
 
 
-def _wait_for_results(page, extra_wait_ms: int = 25_000) -> None:
-    """Accept cookie banner, click Search (Hae) to run search, then wait for price content."""
+def _wait_for_results(page, extra_wait_ms: int = 12_000) -> None:
+    """Accept cookie banner, click Search (Hae), then wait for price content. Timings kept under 2min CI."""
     logger.info("Looking for cookie banner (Accept), then triggering search...")
-    page.wait_for_timeout(2000)  # brief moment for page to start
+    page.wait_for_timeout(1000)
     _accept_cookie_consent(page)
-    page.wait_for_timeout(1500)  # let consent settle before clicking Search
+    page.wait_for_timeout(500)
     _click_search_button(page)
-    remaining = max(0, extra_wait_ms - 2000 - 5000)  # reserve time for consent + search click
+    remaining = max(0, extra_wait_ms - 2000)
     logger.info("Waiting %.1fs for results to load...", remaining / 1000.0)
     page.wait_for_timeout(remaining)
-    logger.info("Waiting up to 35s for body to contain a price (€ + digits)...")
+    logger.info("Waiting up to 18s for body to contain a price (€ + digits)...")
     try:
         page.wait_for_function(
             "document.body && document.body.innerText && document.body.innerText.match(/[€£]\\s*[\\d,.]+|[\\d,.]+\\s*[€£]/)",
-            timeout=35_000,
+            timeout=18_000,
         )
         logger.info("Price-like text detected in body.")
     except Exception:
         logger.info("No price-like text in body within timeout; continuing to extract anyway.")
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(1500)
 
 
-def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
+def fetch_prices(headless: bool = True, timeout_ms: int = 45_000) -> dict:
     """
     Open the search URL, wait for results, extract prices.
     Returns dict with: min_price, all_prices, rental_days, pickup_date, dropoff_date, url.
@@ -232,11 +231,11 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
             logger.info("Navigating to search URL...")
             page.goto(url, wait_until="load", timeout=timeout_ms)
             logger.info("Page load complete. Waiting for results (WAF + cookie + price content)...")
-            _wait_for_results(page, extra_wait_ms=25_000)
+            _wait_for_results(page, extra_wait_ms=12_000)
             if _page_has_error_message(page):
                 logger.warning("Page shows error message (e.g. Jokin meni pieleen). Retrying once after reload...")
                 page.reload(wait_until="load", timeout=timeout_ms)
-                _wait_for_results(page, extra_wait_ms=30_000)
+                _wait_for_results(page, extra_wait_ms=15_000)
             if _page_has_error_message(page):
                 logger.warning("Page still shows error after retry. Site may be blocking automation.")
             logger.info("Extracting prices from page...")
