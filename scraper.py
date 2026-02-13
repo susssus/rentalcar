@@ -109,10 +109,9 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
                 viewport={"width": 1280, "height": 800},
             )
             page = context.new_page()
-            # Site can be slow or JS-heavy; wait for load then allow time for results to render
-            # Use "load" not "networkidle" (networkidle can hang on sites with constant requests)
+            # Site can be slow or JS-heavy; Rentalcars needs 10–15s to show results (per their tooling)
             page.goto(url, wait_until="load", timeout=timeout_ms)
-            page.wait_for_timeout(6000)  # allow JS to render results
+            page.wait_for_timeout(18000)  # 18s so results have time to render before we scrape
             prices = _extract_prices_from_page(page)
             if prices:
                 result["all_prices"] = prices
