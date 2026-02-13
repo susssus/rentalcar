@@ -132,7 +132,14 @@ def _accept_cookie_consent(page, wait_banner_ms: int = 4000, click_timeout_ms: i
             pass
         if not btn:
             try:
-                btn = page.get_by_role("button", name=re.compile(r"Hyväksyn|Accept", re.I)).first
+                # English (likely in CI) and Finnish
+                btn = page.get_by_role(
+                    "button",
+                    name=re.compile(
+                        r"Accept\s*all|Allow\s*all|Accept\s*cookies|Accept|OK|Hyväksyn",
+                        re.I,
+                    ),
+                ).first
                 btn.wait_for(state="attached", timeout=2000)
             except Exception:
                 pass
@@ -141,7 +148,7 @@ def _accept_cookie_consent(page, wait_banner_ms: int = 4000, click_timeout_ms: i
             page.wait_for_timeout(200)
             btn.click(timeout=click_timeout_ms)
             page.wait_for_timeout(1000)
-            logger.info("Cookie consent: clicked Accept (Hyväksyn).")
+            logger.info("Cookie consent: clicked Accept.")
         else:
             logger.info("Cookie consent: no banner found, skipping.")
     except Exception as e:
@@ -149,26 +156,33 @@ def _accept_cookie_consent(page, wait_banner_ms: int = 4000, click_timeout_ms: i
 
 
 def _page_has_error_message(page) -> bool:
-    """True if the page shows the Finnish error state (e.g. 'Jokin meni pieleen')."""
+    """True if the page shows an error state (English or Finnish)."""
     try:
         el = page.query_selector('[data-testid="error-message"]')
         if el and el.is_visible():
             return True
         text = (page.inner_text("body") or "").lower()
-        return "jokin meni pieleen" in text or "päivitä sivu" in text
+        # English (likely in CI) – generic error copy, not "no cars available"
+        if "something went wrong" in text or "refresh the page" in text or "try again" in text:
+            return True
+        # Finnish
+        if "jokin meni pieleen" in text or "päivitä sivu" in text:
+            return True
+        return False
     except Exception:
         return False
 
 
 def _click_search_button(page, timeout_ms: int = 6000) -> None:
-    """Click the 'Hae' (Search) submit button so the search actually runs. Kept short for CI."""
+    """Click the Search submit button (English or Finnish 'Hae') so the search runs. Kept short for CI."""
     try:
-        btn = page.get_by_role("button", name=re.compile(r"Hae|Search", re.I)).first
+        # English first (likely in CI), then Finnish
+        btn = page.get_by_role("button", name=re.compile(r"Search|Hae|Find\s*cars", re.I)).first
         btn.wait_for(state="visible", timeout=timeout_ms)
         btn.scroll_into_view_if_needed(timeout=2000)
         page.wait_for_timeout(200)
         btn.click(timeout=2000)
-        logger.info("Clicked Search (Hae) to trigger results.")
+        logger.info("Clicked Search to trigger results.")
     except Exception as e:
         logger.info("Search button click skipped or failed — %s", e)
 
@@ -226,6 +240,7 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 45_000) -> dict:
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
+                locale="en-GB",  # Prefer English so consent/search/errors match (CI often gets en)
             )
             page = context.new_page()
             logger.info("Navigating to search URL...")
@@ -233,11 +248,11 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 45_000) -> dict:
             logger.info("Page load complete. Waiting for results (WAF + cookie + price content)...")
             _wait_for_results(page, extra_wait_ms=12_000)
             if _page_has_error_message(page):
-                logger.warning("Page shows error message (e.g. Jokin meni pieleen). Retrying once after reload...")
+                logger.warning("Page shows error message. Retrying once after reload...")
                 page.reload(wait_until="load", timeout=timeout_ms)
                 _wait_for_results(page, extra_wait_ms=15_000)
             if _page_has_error_message(page):
-                logger.warning("Page still shows error after retry. Site may be blocking automation.")
+                logger.warning("Page still shows error after retry. Site may block automation.")
             logger.info("Extracting prices from page...")
             prices = _extract_prices_from_page(page)
             if prices:
@@ -264,6 +279,7 @@ def dump_page_html(output_path: Path | None = None, timeout_ms: int = 90_000) ->
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
+                locale="en-GB",
             )
             page = context.new_page()
             page.goto(url, wait_until="load", timeout=timeout_ms)
