@@ -39,6 +39,9 @@ Scraping runs **on GitHub’s runners** (full Linux + Playwright), then POSTs re
 3. **Flow**  
    The Action installs Python + Playwright, runs the same scraper as the Python CLI, and POSTs the run JSON to `https://<INGEST_URL>/api/ingest`. The dashboard then shows the new data.
 
+4. **0 offers in CI**  
+   Runs from GitHub Actions often get **0 offers** because the site (Rentalcars.com) may show an error page or block automated traffic in that environment (e.g. AWS WAF, datacenter IP). A **successful** scrape (with at least one offer and price data) is more likely when you run the scraper **locally** or from a non-blocked IP. When the Action gets 0 offers, it still POSTs the run (so the dashboard records the attempt) and uploads a **debug artifact** `scrape-zero-offers-html` with the page HTML so you can inspect what the page looked like in CI (Actions → run → Artifacts).
+
 ---
 
 ## Local development

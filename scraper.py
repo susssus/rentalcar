@@ -144,27 +144,27 @@ def _page_has_error_message(page) -> bool:
         return False
 
 
-def _wait_for_results(page, extra_wait_ms: int = 18_000) -> None:
+def _wait_for_results(page, extra_wait_ms: int = 25_000) -> None:
     """Wait for WAF/cookies then for price-like content. Accept cookie banner first."""
-    logger.info("Waiting 3s for WAF / page scripts to start...")
-    page.wait_for_timeout(3000)  # let WAF script start
+    logger.info("Waiting 5s for WAF / page scripts to start...")
+    page.wait_for_timeout(5000)  # let WAF script start
     _accept_cookie_consent(page)
-    remaining = max(0, extra_wait_ms - 3000 - 2000)
+    remaining = max(0, extra_wait_ms - 5000 - 2000)
     logger.info("Waiting %.1fs for results to load...", remaining / 1000.0)
     page.wait_for_timeout(remaining)
-    logger.info("Waiting up to 20s for body to contain a price (€ + digits)...")
+    logger.info("Waiting up to 35s for body to contain a price (€ + digits)...")
     try:
         page.wait_for_function(
             "document.body && document.body.innerText && document.body.innerText.match(/[€£]\\s*[\\d,.]+|[\\d,.]+\\s*[€£]/)",
-            timeout=20_000,
+            timeout=35_000,
         )
         logger.info("Price-like text detected in body.")
     except Exception:
         logger.info("No price-like text in body within timeout; continuing to extract anyway.")
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(5000)
 
 
-def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
+def fetch_prices(headless: bool = True, timeout_ms: int = 60_000) -> dict:
     """
     Open the search URL, wait for results, extract prices.
     Returns dict with: min_price, all_prices, rental_days, pickup_date, dropoff_date, url.
@@ -200,11 +200,11 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
             logger.info("Navigating to search URL...")
             page.goto(url, wait_until="load", timeout=timeout_ms)
             logger.info("Page load complete. Waiting for results (WAF + cookie + price content)...")
-            _wait_for_results(page, extra_wait_ms=18_000)
+            _wait_for_results(page, extra_wait_ms=25_000)
             if _page_has_error_message(page):
                 logger.warning("Page shows error message (e.g. Jokin meni pieleen). Retrying once after reload...")
                 page.reload(wait_until="load", timeout=timeout_ms)
-                _wait_for_results(page, extra_wait_ms=20_000)
+                _wait_for_results(page, extra_wait_ms=30_000)
             if _page_has_error_message(page):
                 logger.warning("Page still shows error after retry. Site may be blocking automation.")
             logger.info("Extracting prices from page...")
@@ -221,7 +221,7 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
     return result
 
 
-def dump_page_html(output_path: Path | None = None, timeout_ms: int = 60_000) -> str:
+def dump_page_html(output_path: Path | None = None, timeout_ms: int = 90_000) -> str:
     """Fetch the page and save HTML for debugging selectors."""
     cfg = load_config()
     url = build_search_url(cfg)
@@ -236,10 +236,10 @@ def dump_page_html(output_path: Path | None = None, timeout_ms: int = 60_000) ->
             )
             page = context.new_page()
             page.goto(url, wait_until="load", timeout=timeout_ms)
-            _wait_for_results(page, extra_wait_ms=18_000)
+            _wait_for_results(page, extra_wait_ms=25_000)
             if _page_has_error_message(page):
                 page.reload(wait_until="load", timeout=timeout_ms)
-                _wait_for_results(page, extra_wait_ms=20_000)
+                _wait_for_results(page, extra_wait_ms=30_000)
             html = page.content()
             out.write_text(html, encoding="utf-8")
             logger.info("Saved HTML to %s", out)

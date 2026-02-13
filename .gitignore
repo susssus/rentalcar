@@ -6,6 +6,7 @@ venv/
 .venv/
 data/*.db
 rentalcars_search_results.html
+scrape-zero-offers.html
 node_modules/
 .next/
 out/

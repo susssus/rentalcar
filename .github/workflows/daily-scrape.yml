@@ -25,6 +25,7 @@ jobs:
           playwright install-deps chromium || true
 
       - name: Run scraper and ingest
+        id: scrape
         timeout-minutes: 2
         env:
           INGEST_URL: ${{ secrets.INGEST_URL }}
@@ -39,6 +40,10 @@ jobs:
           echo "Scraper log (above). JSON (first 800 chars):"
           echo "$OUT" | head -c 800
           echo ""
+
+          NUM_OFFERS=$(echo "$OUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('num_offers', 0))" 2>/dev/null || echo "0")
+          echo "num_offers=$NUM_OFFERS" >> $GITHUB_OUTPUT
+          echo "zero_offers=$([ "$NUM_OFFERS" = "0" ] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
 
           if [ -z "$INGEST_URL" ] || [ -z "$INGEST_SECRET" ]; then
             echo "=== FAIL: INGEST_URL or INGEST_SECRET not set in repo Secrets. Add them in Settings → Secrets and variables → Actions. ==="
@@ -67,3 +72,24 @@ jobs:
             exit 1
           fi
           echo "=== Done: data was stored. Refresh your dashboard. ==="
+
+      - name: Dump HTML when 0 offers (debug artifact)
+        if: steps.scrape.outputs.zero_offers == 'true'
+        timeout-minutes: 2
+        run: |
+          echo "=== 0 offers: saving page HTML as artifact for debugging ==="
+          python -c "
+          import sys
+          sys.path.insert(0, '.')
+          from pathlib import Path
+          from scraper import dump_page_html
+          dump_page_html(Path('scrape-zero-offers.html'))
+          "
+          echo "Saved scrape-zero-offers.html"
+
+      - name: Upload HTML artifact (when 0 offers)
+        if: steps.scrape.outputs.zero_offers == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-zero-offers-html
+          path: scrape-zero-offers.html
