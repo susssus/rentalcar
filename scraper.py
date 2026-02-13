@@ -118,18 +118,23 @@ def _extract_prices_from_page(page) -> list[float]:
     return sorted(prices)
 
 
-def _accept_cookie_consent(page, timeout_ms: int = 5000) -> None:
-    """Click OneTrust 'Accept' (Hyväksyn) if the banner is visible."""
+def _accept_cookie_consent(page, wait_banner_ms: int = 15_000, click_timeout_ms: int = 5000) -> None:
+    """Wait for OneTrust banner (id=onetrust-group-container / Accept button), then click Accept (Hyväksyn)."""
     try:
-        btn = page.query_selector("#onetrust-accept-btn-handler")
+        # OneTrust loads async; wait for the Accept button to be visible (e.g. "Hyväksyn" in Finnish)
+        btn = page.wait_for_selector(
+            "#onetrust-accept-btn-handler",
+            state="visible",
+            timeout=wait_banner_ms,
+        )
         if btn:
-            btn.click(timeout=timeout_ms)
+            btn.click(timeout=click_timeout_ms)
             page.wait_for_timeout(1500)  # let banner dismiss
             logger.info("Cookie consent: clicked Accept (Hyväksyn).")
         else:
             logger.info("Cookie consent: no banner found, skipping.")
     except Exception as e:
-        logger.info("Cookie consent: skipped or failed — %s", e)
+        logger.info("Cookie consent: banner did not appear within %ds or click failed — %s", wait_banner_ms / 1000, e)
 
 
 def _page_has_error_message(page) -> bool:
