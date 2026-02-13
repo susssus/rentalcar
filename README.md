@@ -12,8 +12,8 @@ Deploy as a **Vercel webapp** with a dashboard. Price scraping runs in a **daily
 
 2. **Create a Vercel project** from the repo. Vercel will detect Next.js.
 
-3. **Add Upstash Redis**  
-   In the Vercel dashboard: Project → Integrations → search **Upstash** → add the Redis integration and connect a database (or create one). This stores the price history. The integration injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+3. **Add Redis**  
+   In the Vercel dashboard: Project → Integrations / Storage → add a **Redis** database and connect it to your project. This stores the price history. The integration will add **REDIS_URL** (a `redis://...` connection string). Ensure it’s set for Production (and Preview if needed).
 
 4. **Environment variables** (optional; defaults work for ALC, 25 Feb–12 Mar 2026):
    - `CRON_SECRET` or `INGEST_SECRET` – Secret used to authorize the GitHub Action when it POSTs scraped data to `/api/ingest`. Set the same value as the GitHub secret `INGEST_SECRET` (see below).
@@ -48,7 +48,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You need **Upstash Redis** for storage: add the Upstash integration to your Vercel project, then run `vercel link` and `vercel env pull .env.local` to get `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` locally.
+Open [http://localhost:3000](http://localhost:3000). You need **REDIS_URL** for storage: add a Redis integration to your Vercel project, then run `vercel link` and `vercel env pull .env.local` to get `REDIS_URL` locally.
 
 The “Run price check now” button no longer runs a scrape on Vercel; it shows a short message. Data is updated by the daily GitHub Action. To test the scraper locally, use the Python CLI below and (optionally) POST the output to your app’s `/api/ingest` with the same secret.
 
@@ -77,4 +77,4 @@ playwright install chromium
 - **Watch (poll every N min):** `python main.py --watch`  
 - **Stats only:** `python main.py --stats`
 
-Config: `config.yaml` (dates, `cheap_percentile`, etc.). Data is stored in `data/prices.db` (SQLite), separate from the Upstash Redis used by the webapp.
+Config: `config.yaml` (dates, `cheap_percentile`, etc.). Data is stored in `data/prices.db` (SQLite), separate from the Redis used by the webapp.
