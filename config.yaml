@@ -1,0 +1,36 @@
+# Rentalcars.com price watcher - ALC (Alicante), automatic, small cars
+
+location:
+  iata: ALC
+  name: "Alicante–Elche Miguel Hernández Airport"
+  coordinates: "38.28689956665039,-0.5599269866943359"
+
+# Pickup and dropoff (same location = fetch & return at ALC)
+pickup:
+  day: 25
+  month: 2   # 1-12
+  year: 2026
+  hour: 14
+  minute: 30
+
+dropoff:
+  day: 12
+  month: 3
+  year: 2026
+  hour: 14
+  minute: 30
+
+# Filters (from your example)
+drivers_age: 30
+transmission: AUTOMATIC
+car_category: small
+
+# When to consider it "cheap" (notify): below this percentile of historical prices
+# 0.25 = notify when below 25th percentile (cheaper than 75% of past observations)
+cheap_percentile: 0.25
+
+# Poll every N minutes when running in watch mode (default 360 = 6 hours)
+poll_interval_minutes: 360
+
+# Optional: desktop notifications (macOS/Linux/Windows via playwright or system)
+desktop_notify: true

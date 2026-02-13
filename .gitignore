@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.env.local
+venv/
+.venv/
+data/*.db
+rentalcars_search_results.html
+node_modules/
+.next/
+out/
