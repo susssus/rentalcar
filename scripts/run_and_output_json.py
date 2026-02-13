@@ -4,6 +4,7 @@ Run the Rentalcars scraper once and print the run as JSON to stdout.
 Used by the GitHub Action to POST to the app's /api/ingest.
 """
 import json
+import logging
 import sys
 import warnings
 from datetime import date, datetime, timezone
@@ -14,6 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Avoid deprecation warnings on stdout when Action captures 2>&1
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Scrape progress goes to stderr so Action logs show it; JSON stays on stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="[scraper] %(levelname)s: %(message)s",
+    stream=sys.stderr,
+    force=True,
+)
 
 from scraper import fetch_prices  # noqa: E402
 from config import load_config  # noqa: E402

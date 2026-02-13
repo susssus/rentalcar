@@ -32,9 +32,11 @@ jobs:
         run: |
           set -e
           echo "=== 1. Running scraper ==="
-          # Capture stdout only so JSON is not mixed with stderr (e.g. deprecation warnings)
-          OUT=$(python scripts/run_and_output_json.py 2>/dev/null) || true
-          echo "Scraper output (first 800 chars):"
+          # Logs go to stderr, JSON is last line of stdout; tee captures both so we show logs and extract JSON
+          python scripts/run_and_output_json.py 2>&1 | tee /tmp/scraper.log
+          OUT=$(tail -n1 /tmp/scraper.log)
+          echo ""
+          echo "Scraper log (above). JSON (first 800 chars):"
           echo "$OUT" | head -c 800
           echo ""
 

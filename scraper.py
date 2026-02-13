@@ -54,16 +54,20 @@ def _extract_prices_from_page(page) -> list[float]:
     for sel in selectors:
         try:
             els = page.query_selector_all(sel)
+            n_before = len(prices)
             for el in els:
                 text = (el.inner_text() or "").strip()
                 p = _parse_price_text(text)
                 if p is not None and p > 0 and p < 100_000 and p not in seen:
                     seen.add(p)
                     prices.append(p)
+            if len(prices) > n_before:
+                logger.info("Selector %s: found %d price(s) (total %d)", sel, len(prices) - n_before, len(prices))
         except Exception as e:
             logger.debug("Selector %s: %s", sel, e)
     # Fallback 1: run regex in browser (same DOM as user; handles "237 €" from e.g. Finnish page)
     if not prices:
+        logger.info("No prices from CSS selectors; trying browser regex on body text.")
         try:
             browser_prices = page.evaluate("""
                 () => {
@@ -86,11 +90,14 @@ def _extract_prices_from_page(page) -> list[float]:
                     if isinstance(n, (int, float)) and 10 < n < 100_000 and n not in seen:
                         seen.add(n)
                         prices.append(round(float(n), 2))
+                if prices:
+                    logger.info("Browser regex fallback: found %d price(s)", len(prices))
         except Exception as e:
             logger.debug("Browser price fallback: %s", e)
 
     # Fallback 2: body text with € or £ and numbers (server-side)
     if not prices:
+        logger.info("Trying server-side regex on body text.")
         try:
             all_text = page.inner_text("body") or ""
             for m in re.finditer(r"[€£]\s*([\d.,]+)|([\d.,]+)\s*[€£]|(\d{2,5}(?:[.,]\d{2})?)\s*EUR", all_text, re.IGNORECASE):
@@ -103,8 +110,11 @@ def _extract_prices_from_page(page) -> list[float]:
                             prices.append(v)
                     except ValueError:
                         pass
+                if prices:
+                    logger.info("Body text fallback: found %d price(s)", len(prices))
         except Exception as e:
             logger.debug("Body price fallback: %s", e)
+    logger.info("Extraction complete: %d total price(s) found", len(prices))
     return sorted(prices)
 
 
@@ -115,8 +125,11 @@ def _accept_cookie_consent(page, timeout_ms: int = 5000) -> None:
         if btn:
             btn.click(timeout=timeout_ms)
             page.wait_for_timeout(1500)  # let banner dismiss
+            logger.info("Cookie consent: clicked Accept (Hyväksyn).")
+        else:
+            logger.info("Cookie consent: no banner found, skipping.")
     except Exception as e:
-        logger.debug("Cookie consent click skipped or failed: %s", e)
+        logger.info("Cookie consent: skipped or failed — %s", e)
 
 
 def _page_has_error_message(page) -> bool:
@@ -133,16 +146,21 @@ def _page_has_error_message(page) -> bool:
 
 def _wait_for_results(page, extra_wait_ms: int = 18_000) -> None:
     """Wait for WAF/cookies then for price-like content. Accept cookie banner first."""
+    logger.info("Waiting 3s for WAF / page scripts to start...")
     page.wait_for_timeout(3000)  # let WAF script start
     _accept_cookie_consent(page)
-    page.wait_for_timeout(max(0, extra_wait_ms - 3000 - 2000))  # rest of initial wait (minus cookie click buffer)
+    remaining = max(0, extra_wait_ms - 3000 - 2000)
+    logger.info("Waiting %.1fs for results to load...", remaining / 1000.0)
+    page.wait_for_timeout(remaining)
+    logger.info("Waiting up to 20s for body to contain a price (€ + digits)...")
     try:
         page.wait_for_function(
             "document.body && document.body.innerText && document.body.innerText.match(/[€£]\\s*[\\d,.]+|[\\d,.]+\\s*[€£]/)",
             timeout=20_000,
         )
+        logger.info("Price-like text detected in body.")
     except Exception:
-        pass
+        logger.info("No price-like text in body within timeout; continuing to extract anyway.")
     page.wait_for_timeout(3000)
 
 
@@ -170,6 +188,7 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
         "url": url,
     }
 
+    logger.info("Scrape start: url=%s, headless=%s, timeout=%dms", url, headless, timeout_ms)
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
         try:
@@ -178,20 +197,24 @@ def fetch_prices(headless: bool = True, timeout_ms: int = 35_000) -> dict:
                 viewport={"width": 1280, "height": 800},
             )
             page = context.new_page()
+            logger.info("Navigating to search URL...")
             page.goto(url, wait_until="load", timeout=timeout_ms)
+            logger.info("Page load complete. Waiting for results (WAF + cookie + price content)...")
             _wait_for_results(page, extra_wait_ms=18_000)
             if _page_has_error_message(page):
-                logger.warning("Page showed error message; retrying once after reload.")
+                logger.warning("Page shows error message (e.g. Jokin meni pieleen). Retrying once after reload...")
                 page.reload(wait_until="load", timeout=timeout_ms)
                 _wait_for_results(page, extra_wait_ms=20_000)
+            if _page_has_error_message(page):
+                logger.warning("Page still shows error after retry. Site may be blocking automation.")
+            logger.info("Extracting prices from page...")
             prices = _extract_prices_from_page(page)
             if prices:
                 result["all_prices"] = prices
                 result["min_price"] = min(prices)
+                logger.info("Scrape success: min_total=%.2f €, num_offers=%d", result["min_price"], len(prices))
             else:
-                if _page_has_error_message(page):
-                    logger.warning("Page still shows error (e.g. Jokin meni pieleen). Site may block automation.")
-                logger.warning("No prices found on page. Check selectors or run with --dump-html.")
+                logger.warning("Scrape finished with 0 offers. Check selectors or run with --dump-html.")
         finally:
             browser.close()
 
